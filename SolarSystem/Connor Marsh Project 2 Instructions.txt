@@ -1,0 +1,5 @@
+Hi sorry to make this more complicated than just a single .ipynb file, but I saved API and simulation data into .npy files, which will save whoever is grading this a TON of time of running computation and waiting for API responses.
+
+The setup is super simple, just make sure that all of the .npy files are in the same directory as the .ipynb, and then everyting should run smoothly!
+
+I included .npy files mostly for runs starting on my birthday, and lasting 36 months, with every planet + Earth's moon. I also included a few .npy files for 12 month runs, but the code right now is setup to use the 36 month runs so unless you want to mess with my code, it'll be easier to just leave it as is and use the 36 month run data.
