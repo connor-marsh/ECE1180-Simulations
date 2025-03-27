@@ -1,8 +1,10 @@
 from vpython import *
 import numpy as np
+import time
 G = -9.8
-fps = 200
-dt = 1/fps
+fps = 30
+resolutionMultiplier = 30
+dt = (1/fps) / resolutionMultiplier
 
 def alignVectors(a, b):
     b = b / np.linalg.norm(b) # normalize a
@@ -103,38 +105,88 @@ class Ball(Sphere):
     def update(self, collideables=[]):
         self.vel += np.array([0,1,0])*G*dt
         self.pos += self.vel*dt
-        self.show()
+        
         
         for obj in collideables:
             collisionNormal, collisionPoint = obj.collideSphere(self)
-            if np.all(collisionNormal != None):
-                self.vel = np.linalg.norm(self.vel)*self.restitution*collisionNormal
+            if type(collisionNormal)==list:
+                for i in range(len(collisionNormal)):
+                    if np.all(collisionNormal[i] != None):
+                        rotMat = alignVectors(self.vel*np.array([-1,-1,-1]), collisionNormal[i])
+                        self.vel = np.linalg.norm(self.vel)*np.dot(rotMat, collisionNormal[i])
+                        restitutionAdjust = self.vel*collisionNormal[i]*(1-self.restitution)
+                        if np.dot(self.vel, restitutionAdjust) > 0:
+                            self.vel -= restitutionAdjust
+                        else:
+                            self.vel += restitutionAdjust
+                        self.pos = collisionPoint[i] + self.radius*collisionNormal[i]
+            elif np.all(collisionNormal != None):
+                rotMat = alignVectors(self.vel*np.array([-1,-1,-1]), collisionNormal)
+                self.vel = np.linalg.norm(self.vel)*np.dot(rotMat, collisionNormal)
+                restitutionAdjust = self.vel*collisionNormal*(1-self.restitution)
+                if np.dot(self.vel, restitutionAdjust) > 0:
+                    self.vel -= restitutionAdjust
+                else:
+                    self.vel += restitutionAdjust
                 self.pos = collisionPoint + self.radius*collisionNormal
                 
         if self.pos[1] < 0:
             self.pos[1] = 0
             self.vel[1] *= -self.restitution
+        self.show()
                 
         
 class Table(Box):
-    def __init__(self, pos=np.zeros(3), radius=1):
+    def __init__(self, pos=np.zeros(3)):
         super().__init__(pos=pos, size=[2.743, 0.752, 1.524], color=vec(0.3, 0.3, 0.6))
 
+class Net(Box):
+    def __init__(self, pos=np.zeros(3)):
+        super().__init__(pos=pos, size=[0.005, 0.1525, 1.83], color=vec(0.7, 0.7, 0.7))
+
+class PingPongTable():
+    def __init__(self, pos=np.zeros(3)):
+        self.table = Table(pos=pos)
+        self.net = Net(pos=[pos[0]+self.table.size[0]/2,pos[1]+self.table.size[1],pos[2]-0.15])
+    def collideSphere(self, other):
+        tableNormal, tablePoint = self.table.collideSphere(other)
+        netNormal, netPoint = self.net.collideSphere(other)
+        return [tableNormal, netNormal], [tablePoint, netPoint]
+    def show(self):
+        self.table.show()
+        self.net.show()
 
 scene = canvas()
 arrow(pos=vec(0,0,0), axis=vec(1,0,0), color=vec(1,0,0))
 arrow(pos=vec(0,0,0), axis=vec(0,1,0), color=vec(0,1,0))
 arrow(pos=vec(0,0,0), axis=vec(0,0,1), color=vec(0,0,1))
 # rah = Sphere(radius=1, pos=[0.5, 0, 0.5])
-ball = Ball(pos=[-0.1, 4, 1])
+ball = Ball(pos=[0.2, 5, 0.1], make_trail=True)
+ball.vel[0]=5.0
+ball.vel[2]=0.07
+collideables = []
+
 # table = Table(pos =[0,0,0.2])
-table = Box(size=[4, 0.4, 1], axis=[0,1,1], angle=0, showNormals=False)
-# haha = np.dot(table.rotation, np.array([0,1,0]))
-# arrow(pos=vec(0,0,0), axis=vec(haha[0],haha[1],haha[2]))
+# box1 = Box(pos = [0,0,0], size=[4, 0.4, 4], axis=[-1,1,0], angle=0, showNormals=False)
+# box2 = Box(pos = [0,0,0], size=[4, 0.4, 4], axis=[1,1,0], angle=0, showNormals=False)
+# collideables.append(box1)
+# collideables.append(box2)
+
+table = PingPongTable()
+collideables.append(table)
+collideables.append(Box(pos=[-1,0,0], size=[1,6,3]))
+collideables.append(Box(pos=[table.table.size[0],0,0], size=[1,6,3]))
+
 
 t = 0
-while t < 5:
-    ball.update(collideables=[table])
+while t < 15:
+    # print("ALIVE")
+    startTime = time.time()
+    for _ in range(resolutionMultiplier):
+        ball.update(collideables=collideables)
+    endTime = time.time()
+    # print("UPDATE TIME: " + str(endTime-startTime))
+    # print("STILL ALIVE")
     
-    t += dt
+    t += dt*resolutionMultiplier
     rate(fps)
