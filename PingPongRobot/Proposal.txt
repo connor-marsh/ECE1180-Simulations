@@ -1,0 +1,4 @@
+For my final simulation, I would like to simulate the physics and controls of a robotic arm controlling a ping pong ball.
+The arm would hopefully be able to balance the ball on the paddle, bounce the ball on the paddle, and maybe even hit the ball to a target location.
+The simulation could be used to determine robot arm parameters required to achieve these tasks, as well as giving a starting point for control gains. Will probably start with PID control and maybe try to upgrade it to state-space control or optimal control if all goes well.
+For verification, I can use the closed form dynamics integrals on the ping pong ball and paddle collisions to check if the simulations dynamics are accurate. I also have access to some real robot arms through RAS that I could use to potentially verify the control as well, but that would be a lot more work.
