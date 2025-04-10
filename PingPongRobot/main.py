@@ -161,21 +161,23 @@ arrow(pos=vec(0,0,0), axis=vec(1,0,0), color=vec(1,0,0))
 arrow(pos=vec(0,0,0), axis=vec(0,1,0), color=vec(0,1,0))
 arrow(pos=vec(0,0,0), axis=vec(0,0,1), color=vec(0,0,1))
 # rah = Sphere(radius=1, pos=[0.5, 0, 0.5])
-ball = Ball(pos=[0.2, 5, 0.1], make_trail=True)
+ball = Ball(pos=[0.2, 5, 0.4], make_trail=True)
 ball.vel[0]=5.0
 ball.vel[2]=0.07
 collideables = []
 
-# table = Table(pos =[0,0,0.2])
-# box1 = Box(pos = [0,0,0], size=[4, 0.4, 4], axis=[-1,1,0], angle=0, showNormals=False)
-# box2 = Box(pos = [0,0,0], size=[4, 0.4, 4], axis=[1,1,0], angle=0, showNormals=False)
-# collideables.append(box1)
-# collideables.append(box2)
+table = Table(pos =[0,0,0.2])
+box1 = Box(pos = [0,0,0], size=[4, 0.4, 4], axis=[-1,1,0], angle=0, showNormals=False)
+box2 = Box(pos = [0,0,0], size=[4, 0.4, 4], axis=[1,1,-0.05], angle=0, showNormals=False, color=vec(0.6, 0.4, 0.4))
+ball.vel[0]=0.
+ball.vel[2]=0.
+collideables.append(box1)
+collideables.append(box2)
 
-table = PingPongTable()
-collideables.append(table)
-collideables.append(Box(pos=[-1,0,0], size=[1,6,3]))
-collideables.append(Box(pos=[table.table.size[0],0,0], size=[1,6,3]))
+# table = PingPongTable()
+# collideables.append(table)
+# collideables.append(Box(pos=[-1,0,0], size=[1,6,3]))
+# collideables.append(Box(pos=[table.table.size[0],0,0], size=[1,6,3]))
 
 
 t = 0
