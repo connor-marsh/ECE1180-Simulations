@@ -1,0 +1,95 @@
+<robot name="robot_arm">
+ 	<link name="base_link">
+		<visual>
+		    <origin xyz="0 0 0" rpy="0 0 0"/>
+			<geometry>
+				<cylinder length="0.075" radius="0.035"/>
+			</geometry>
+		</visual>	
+	</link>
+
+    <link name="base_rotor">
+		<visual>
+            <origin xyz="0.05 0 0.0375" rpy="0 0 0"/>
+          	<geometry>
+                <box size="0.1 0.05 0.05" />
+			</geometry>
+		</visual>	
+	</link>
+    
+    <joint name="base_joint" type="revolute">
+      <parent link="base_link"/>
+      <child link="base_rotor"/>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <axis xyz="0 0 -1"/>
+      <limit lower="-3.14159" upper="3.14159" />
+    </joint>
+    
+    <link name="upper_arm">
+		<visual>
+          <origin xyz="0.1 0 0.14" rpy="0 0 0" />
+          	<geometry>
+            	<cylinder length="0.28" radius="0.03"/>
+			</geometry>
+		</visual>	
+	</link>
+    <joint name="shoulder_joint" type="revolute">
+      <parent link="base_rotor"/>
+      <child link="upper_arm"/>
+      <origin xyz="0 0 0.06" rpy="0 0 0" />
+      <axis xyz="1 0 0"/>
+      <limit lower="-1.2" upper="1.2" />
+    </joint>
+    
+    <link name="lower_arm">
+		<visual>
+          <origin xyz="0.03 0 0.14" rpy="0 0 0" />
+          	<geometry>
+            	<cylinder length="0.28" radius="0.03"/>
+			</geometry>
+		</visual>	
+	</link>
+    
+    <joint name="elbow_joint" type="revolute">
+      <parent link="upper_arm"/>
+      <child link="lower_arm"/>
+      <origin xyz="0 0 0.28" rpy="0 0 0" />
+      <axis xyz="1 0 0"/>
+      <limit lower="-2" upper="2" />
+    </joint>
+    
+    <link name="wrist">
+		<visual>
+          <origin xyz="0.1 0 0.11" rpy="0 0 0" />
+          	<geometry>
+                <cylinder length="0.22" radius="0.03"/>
+			</geometry>
+		</visual>	
+    </link>
+    
+    <joint name="wrist_joint" type="revolute">
+      <parent link="lower_arm"/>
+      <child link="wrist"/>
+      <origin xyz="0 0 0.28" rpy="0 0 0" />
+      <axis xyz="1 0 0"/>
+      <limit lower="-3.14159" upper="3.14159" />
+    </joint>
+    
+    <link name="wrist_rotor">
+		<visual>
+          <origin xyz="0 0 0" rpy="0 0 0" />
+          	<geometry>
+            	<box size="0.08 0.02 0.02" />
+			</geometry>
+		</visual>	
+	</link>
+    
+    <joint name="wrist_rotor_joint" type="revolute">
+      <parent link="wrist"/>
+      <child link="wrist_rotor"/>
+      <origin xyz="0.1 0 0.21" rpy="0 0 0" />
+      <axis xyz="0 0 -1"/>
+      <limit lower="0" upper="3.14159" />       
+    </joint>
+    
+</robot>
