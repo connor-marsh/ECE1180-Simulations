@@ -91,5 +91,43 @@
       <axis xyz="0 0 -1"/>
       <limit lower="0" upper="3.14159" />       
     </joint>
+
+    <link name="handle">
+		<visual>
+          <origin xyz="0 0 0.05" rpy="0 0 0" />
+          	<geometry>
+            	<box size="0.03 0.02 0.1" />
+			</geometry>
+		</visual>	
+	</link>
+
+    <joint name="wrist_handle_joint" type="fixed">
+      <parent link="wrist_rotor"/>
+      <child link="handle"/>
+      <origin xyz="0 0 0" rpy="0 0 0" />   
+    </joint>
+
+    <link name="paddle">
+		<visual>
+          <origin xyz="0 0 0.1" rpy="0 0 0" />
+          	<geometry>
+            	<box size="0.15 0.02 0.2" />
+			</geometry>
+		</visual>	
+	</link>
+
+    <joint name="handle_paddle_joint" type="fixed">
+      <parent link="handle"/>
+      <child link="paddle"/>
+      <origin xyz="0 0 0.1" rpy="0 0 0" />   
+    </joint>
+
+    <link name="paddle_center"/>
+
+    <joint name="end_effector" type="fixed">
+      <parent link="paddle"/>
+      <child link="paddle_center"/>
+      <origin xyz="0 0 0.1" rpy="0 0 0" />   
+    </joint>
     
 </robot>
