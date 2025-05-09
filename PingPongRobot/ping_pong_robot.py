@@ -618,7 +618,7 @@ class PingPongPaddle():
     def moveTarget(self):
         if self.ballHit != None:
             self.targetVisual.pos = vec(*self.targetPosition)
-        self.targetPosition = (np.random.rand(3)*2-1)*0.5
+        self.targetPosition = (np.random.rand(3)*2-1)*0.2
         if self.targetPosition[1] < 0 and floorActive:
             self.targetPosition[1] *= -1
         # self.targetPosition[1] = 10 ## set to test hitting straight up or close to it
@@ -632,13 +632,188 @@ class PingPongPaddle():
         self.handle.show()
         self.paddle.show()
 
+class Link:
+    def __init__(self, pos=np.zeros(3), size=np.ones(3), axis=None, jointOrigin=None):
+        self.pos = pos
+        temp = self.pos[2]
+        self.pos[2] = self.pos[1]
+        self.pos[1] = temp
+        self.size = size
+        temp = self.size[2]
+        self.size[2] = self.size[1]
+        self.size[1] = temp
+        if np.any(axis == None):
+            self.jointAxis = np.array([0., 1., 0.])
+        else:
+            self.jointAxis = axis
+            temp = self.jointAxis[2]
+            self.jointAxis[2] = self.jointAxis[1]
+            self.jointAxis[1] = temp
+        if np.any(jointOrigin == None):
+            self.jointOrigin = self.pos.copy()
+        else:
+            self.jointOrigin = jointOrigin
+            temp = self.jointOrigin[2]
+            self.jointOrigin[2] = self.jointOrigin[1]
+            self.jointOrigin[1] = temp
+        self.angle = 0
+        self.axis = np.array([1., 0., 0.])
+        self.up = np.array([0., 1., 0.])
+        self.visual = box(pos=vec(pos[0], pos[1], pos[2]), size=vec(size[0], size[1], size[2]), color=vec(0.5, 0.5, 1))
+        
+class Robot:
+    def __init__(self, links):
+        self.links = links
+        self.links[-2].visual.color = vec(.76, .55, .22)
+        self.links[-1].visual.color = vec(.8, .21, .21)
+    def setAngle(self, linkIdx, angle):
+        if linkIdx == 0:
+            print("BASE LINK CANT MOVE")
+            return
+        # link = self.links[linkIdx]
+        # dAngle = angle - link.angle
+        # link.angle = angle
+        # rotMat = axisAngleRotationMatrix(link.jointAxis, dAngle)
+        # link.axis = np.dot(rotMat, link.axis)
+        # prevEndPoint = link.jointOrigin + np.max(link.size)*link.up
+        # link.up = np.dot(rotMat, link.up)
+        # endPoint = link.jointOrigin + np.max(link.size)*link.up
+        # self.links[linkIdx+1].jointOrigin += (endPoint-prevEndPoint)
+        # link.pos = link.jointOrigin + np.max(link.size)*link.up*0.5
+        # link.visual.pos = vec(*link.pos)
+        # link.visual.axis = vec(*link.axis)
+        # link.visual.up = vec(*link.up)
+        # link.visual.size = vec(*link.size)
+
+        for i in range(linkIdx, len(self.links)):
+            
+            link = self.links[i]
+            if i == 1:
+                moveAxis = link.axis
+            else:
+                moveAxis = link.up
+            if i == linkIdx:
+                dAngle = angle - link.angle
+                link.angle = angle
+                rotMat = axisAngleRotationMatrix(link.jointAxis, dAngle)
+                prevEndPoint = link.jointOrigin + np.max(link.size)*moveAxis
+            link.jointAxis = np.dot(rotMat, link.jointAxis)
+            link.axis = np.dot(rotMat, link.axis)
+            link.up = np.dot(rotMat, link.up)
+            if i == 1:
+                moveAxis = link.axis
+            else:
+                moveAxis = link.up
+            if i == 5:
+                endPoint = link.jointOrigin
+            else:
+                endPoint = link.jointOrigin + np.max(link.size)*moveAxis
+            if i < len(self.links)-1:
+                temp = self.links[i+1].jointOrigin + np.max(self.links[i+1].size)*self.links[i+1].up
+                # self.links[i+1].jointOrigin += (endPoint-prevEndPoint)
+                # EXTREMELY HARD CODED DONT DO THIS LOL
+                
+                if i == 2:
+                    self.links[i+1].jointOrigin = endPoint-0.07*link.axis
+                elif i == 3:
+                    self.links[i+1].jointOrigin = endPoint+0.07*link.axis
+                elif i == 1:
+                    self.links[i+1].jointOrigin += (endPoint-prevEndPoint)
+                elif i == 4:
+                    self.links[i+1].jointOrigin = endPoint-0.01*link.up
+                # elif i == 4:
+                #     self.links[i+1].jointOrigin = endPoint-0.07*link.axis
+                else:
+                    self.links[i+1].jointOrigin = endPoint
+                prevEndPoint = temp
+            if i == 5:
+                link.pos = link.jointOrigin
+            else:
+                link.pos = link.jointOrigin + np.max(link.size)*moveAxis*0.5
+            link.visual.pos = vec(*link.pos)
+            link.visual.axis = vec(*link.axis)
+            link.visual.up = vec(*link.up)
+            link.visual.size = vec(*link.size)
 
 
+scene = canvas(width=1200, height=800, background=vec(0.1, 0.25, 0.2))
+box(pos=vec(0, -0.1, 0), size=vec(-2, 0.2, 2), color=vec(0.3, 0.3, 0.3))
 
-scene = canvas()
+
+# Parse the URDF file
+tree = ET.parse('arm_urdf.urdf')
+root = tree.getroot()
+
+# Access robot properties
+robot_name = root.attrib.get('name')
+# print(robot_name)
+summedPos = np.zeros(3)
+joints = {}
+for joint in root.findall('joint'):
+    parent = joint.findall('parent')[0].attrib['link']
+    child = joint.findall('child')[0].attrib['link']
+    if child == 'paddle_center':
+        print("SKIPPING LAST JOINT")
+        continue
+    origin = np.array([float(i) for i in joint.findall('origin')[0].attrib['xyz'].split(" ")])
+    if joint.attrib['type'] != 'fixed':
+        axis = np.array([float(i) for i in joint.findall('axis')[0].attrib['xyz'].split(" ")])
+    else:
+        axis = [1, 0, 0]
+    # print("JOINT", parent, child, origin, axis)
+    joints[child] = [origin, axis]
+
+links = []
+for link in root.findall('link'):
+    name = link.attrib['name']
+    if name == 'paddle_center':
+        print("SKIPPING LAST LINK")
+        continue
+    # print(name)
+    visual = link.findall('visual')[0]
+    origin = visual.findall('origin')[0]
+    geom = visual.findall('geometry')[0]
+    if len(geom.findall('box'))>0:
+        # print("BOX")
+        geom = geom.findall('box')[0]
+        size = np.array([float(i) for i in geom.attrib['size'].split(" ")])
+    else:
+        # print("CYLINDER")
+        geom = geom.findall('cylinder')[0]
+        radius = float(geom.attrib['radius'])
+        length = float(geom.attrib['length'])
+        size = np.array([radius*2, radius*2, length])
+    origin = np.array([float(i) for i in origin.attrib['xyz'].split(" ")])
+    
+    axis = None
+    jointOrigin = None
+    if name in joints:
+        jointOrigin = joints[name][0]
+        axis = joints[name][1]
+        summedPos += jointOrigin
+    origin += summedPos
+    
+    # print("Pos", origin)
+    # print("Size", size)
+    links.append(Link(origin, size, axis, summedPos.copy()))
+# links[3].visual.color=vec(1, 0, 0)
+robot = Robot(links)
+# robot.setAngle(1, 3.14159/4)
+# robot.setAngle(2, 3.14159/4)
+# robot.setAngle(3, 3.14159/4)
+# robot.setAngle(4, 3.14159/4)
+# robot.setAngle(5, 3.14159/4)
+
+import ikpy.chain
+import ikpy.utils.plot as plot_utils
+my_chain = ikpy.chain.Chain.from_urdf_file("arm_urdf.urdf",active_links_mask=[False, True, True, True, True, True, False, False, False])
+target_position = [ 0.3048, 0.3048,0.1]
+ik = my_chain.inverse_kinematics(target_position)
+
+
 scene.autoscale = True
 arrow(pos=vec(0,0,0), axis=vec(1,0,0), color=vec(1,0,0))
-arrow(pos=vec(0,0,0), axis=vec(0,1,0), color=vec(0,1,0))
+# arrow(pos=vec(0,0,0), axis=vec(0,1,0), color=vec(0,1,0))
 arrow(pos=vec(0,0,0), axis=vec(0,0,1), color=vec(0,0,1))
 
 # give ball height 5 for test scenarios
@@ -646,7 +821,7 @@ ball = Ball(pos = [0.2, 3, 0.4], make_trail=False)
 moveables = [ball]
 collideables = []
 
-paddle = PingPongPaddle(pos=[0.2,0.4,0.4])
+paddle = PingPongPaddle(pos=[0.2,0.25,0.4])
 # randVec = (np.random.rand(3)*2)-1
 # paddle.move(axis=randVec/np.linalg.norm(randVec)*np.array([1, 0.2, 1]), alignCenter=True)
 # paddle.move(axis=[1, 0.2, 0], alignCenter=True)
@@ -679,6 +854,27 @@ while t < simLengthSeconds:
         t += dt
         frames += 1
         # endTime = time.time()
+
+    # update robot arm visual
+    centerAdjust = np.array([paddle.handle.size[0]+paddle.paddle.size[0]/2, 0, 0]) # bottom back left corner aligned coordinates
+    # account for rotation
+    centerAdjust = np.dot(paddle.axisRotation, centerAdjust)
+    centerAdjust = np.dot(paddle.angleRotation, centerAdjust)
+    target_position = paddle.pos + centerAdjust
+    target_orientation = paddle.paddle.normals[2]
+    target_position = [target_position[0], -target_position[2], target_position[1]]
+    target_orientation = [target_orientation[0], -target_orientation[2], target_orientation[1]]
+    ik = my_chain.inverse_kinematics(target_position, target_orientation, initial_position=ik.copy(), orientation_mode="Y")
+    # ik = my_chain.inverse_kinematics(target_position, initial_position=ik.copy())
+    # computed_position = my_chain.forward_kinematics(ik)
+    angles = ik.tolist()
+    # print("IK TIME", time.time()-startTime)
+    # angles[1] += 3.14159
+
+    startTime=time.time()
+    for i in range(1, len(angles)):
+        robot.setAngle(i, angles[i])
+    
     if preSimulateThenPlayback:
         for i in range(len(moveables)):
             moveablesStates[i].append(np.copy(moveables[i].pos))
