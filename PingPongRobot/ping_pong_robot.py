@@ -385,7 +385,7 @@ class PingPongPaddle():
         if self.hitBall and self.ballHit:
             if self.ballHit.vel[1] > 0.8:
                 print("CONTROL")
-                t, pos, incomingVel = self.ballHit.findInterception(self.ballHit.pos[1])
+                t, pos, incomingVel = self.ballHit.findInterception(min(0.4, self.ballHit.pos[1]))#self.ballHit.pos[1])
                 self.collisionPos = pos
                 outgoingVel = self.ballHit.findVelocityToReachPosition(self.targetPosition, startingPosition=self.collisionPos)
                 print(f"TARGETVEL {outgoingVel} and UNIT {outgoingVel/np.linalg.norm(outgoingVel)}")
@@ -791,9 +791,9 @@ for _ in moveables:
     moveablesStates.append([])
 t = 0
 frames = 0
-simLengthSeconds = 12/speedMultiplier
+simLengthSeconds = 20/speedMultiplier
 # simLengthTicks = simLengthSeconds/speedMultiplier
-startTime = time.time()
+simStartTime = time.time()
 prev_position = None
 traj_queue = []
 ik_target = sphere(pos=vec(0, -0.1, 0), radius=0.05, color=vec(0, 1, 0))
@@ -823,38 +823,53 @@ while t < simLengthSeconds:
         centerAdjust = np.dot(paddle.angleRotation, centerAdjust)
         target_paddle_position = paddle.pos + centerAdjust
 
-        numSteps = 10
+        numSteps = 8
         if np.linalg.norm(paddle.collisionPos-actual_position) > 0.3 and len(traj_queue) == 0:
             collision_pos.pos = vec(*paddle.collisionPos)
             upPos = (paddle.collisionPos + actual_position)/2
             upPos[1] = 0.7
-            percentages = np.linspace(0, 1, numSteps*3).reshape(numSteps, 3)
+            percentages = np.linspace(0, 1, numSteps*3).reshape(numSteps, 3)[1:]
             trajs = actual_position + (upPos-actual_position) * percentages
             traj_queue += trajs.tolist()
             trajs = upPos + (paddle.collisionPos-upPos) * percentages
             traj_queue += trajs.tolist()
             target_position = traj_queue.pop(0)
             target_orientation = None
-            print("NEW QUEUE")
-        elif np.linalg.norm(paddle.collisionPos-actual_position) > 0.1 and len(traj_queue) > 0:
+            target_orientation = paddle.paddle.normals[2]
+            print("NEW QUEUE GO UP")
+        elif np.linalg.norm(paddle.collisionPos-actual_position) > 0.1 and len(traj_queue) == 0:
+            collision_pos.pos = vec(*paddle.collisionPos)
+            upPos = (paddle.collisionPos + actual_position)/2
+            upPos[1] = 0.7
+            percentages = np.linspace(0, 1, numSteps*3).reshape(numSteps, 3)[1:]
+            trajs = actual_position + (paddle.collisionPos-actual_position) * percentages
+            traj_queue += trajs.tolist()
+            target_position = traj_queue.pop(0)
+            target_orientation = None
+            target_orientation = paddle.paddle.normals[2]
+            print("NEW QUEUE GO STRAIGHT")
+        elif np.linalg.norm(np.array(target_paddle_position) - actual_position) <= 0.15:
+            print("FINAL MOVE")
+            target_position = target_paddle_position
+            target_orientation = paddle.paddle.normals[2]
+        elif np.linalg.norm(paddle.collisionPos-actual_position) > 0.02 and len(traj_queue) > 0:
             target_position = traj_queue.pop(0)
             if len(traj_queue) < numSteps:
                 target_orientation = paddle.paddle.normals[2]
             else:
                 target_orientation = None
+                target_orientation = paddle.paddle.normals[2]
             print("USE QUEUE, LEN:", len(traj_queue))
-        elif np.linalg.norm(np.array(target_position) - actual_position) < 0.05:
-            print("FINAL MOVE")
-            target_position = target_paddle_position
-            target_orientation = paddle.paddle.normals[2]
+        
 
         ik_target.pos = vec(*target_position)
         ik_position = [target_position[0], -target_position[2], target_position[1]]
         if np.all(target_orientation != None):
             ik_orientation = [target_orientation[0], -target_orientation[2], target_orientation[1]]
-            ik = my_chain.inverse_kinematics(ik_position, ik_orientation, initial_position=ik.copy(), orientation_mode="Y")
+            # ik = my_chain.inverse_kinematics(ik_position)
+            ik = my_chain.inverse_kinematics(ik_position, ik_orientation, initial_position=ik, orientation_mode="Y")
         else:
-            ik = my_chain.inverse_kinematics(ik_position, initial_position=ik.copy())
+            ik = my_chain.inverse_kinematics(ik_position, initial_position=ik, orientation_mode=None)
 
         actual_position = my_chain.forward_kinematics(ik)[:3, 3]
         actual_position = [actual_position[0], actual_position[2], -actual_position[1]]
@@ -885,4 +900,4 @@ if preSimulateThenPlayback:
             moveables[i].show()
         rate(fps)
 else:
-    print(f"Simulation was expected to take: {t} seconds and it took: {endTime - startTime} seconds")
+    print(f"Simulation was expected to take: {t} seconds and it took: {endTime - simStartTime} seconds")
