@@ -8,7 +8,7 @@ G = -9.8
 floorActive = True
 fps = 30
 speedMultiplier = 1
-dt = 0.0005 * speedMultiplier
+dt = 0.001 * speedMultiplier
 resolutionMultiplier = int(1.0/(dt*fps)*speedMultiplier)
 print(resolutionMultiplier)
 preSimulateThenPlayback = False
@@ -360,6 +360,7 @@ class PingPongPaddle():
         self.vel = np.zeros(3)
         self.angularVel = np.zeros(3)
         self.metaVel = np.zeros(3)
+        self.collisionPos = None
         self.axisRotation = None
         self.angleRotation = None
         
@@ -385,7 +386,8 @@ class PingPongPaddle():
             if self.ballHit.vel[1] > 0.8:
                 print("CONTROL")
                 t, pos, incomingVel = self.ballHit.findInterception(self.ballHit.pos[1])
-                outgoingVel = self.ballHit.findVelocityToReachPosition(self.targetPosition, startingPosition=pos)
+                self.collisionPos = pos
+                outgoingVel = self.ballHit.findVelocityToReachPosition(self.targetPosition, startingPosition=self.collisionPos)
                 print(f"TARGETVEL {outgoingVel} and UNIT {outgoingVel/np.linalg.norm(outgoingVel)}")
                 
                 #### Make ball go to target position
@@ -486,56 +488,7 @@ class PingPongPaddle():
                 upAxis = bestNormal
                 paddleMagnitude = bestPaddleVel
                 self.metaVel = upAxis * paddleMagnitude
-                self.move(pos=pos-self.metaVel*t, upAxis=upAxis, angle=0, alignCenter=True)
-                
-                ####### make ball return to where it came from
-#                 t, pos, vel = self.ballHit.findInterception(self.ballHit.pos[1])
-#                 upAxis = -1*vel
-#                 defaultUpAxis = np.array([0, 1, 0])
-#                 rotMat = alignVectorsRotationMatrix(defaultUpAxis, upAxis)
-#                 defaultAxis = np.array([1,0,0])
-#                 defaultAxis = np.dot(rotMat, defaultAxis)
-                
-#                 distance = (pos - self.ballHit.pos)*np.array([1, 0, 1])
-                
-#                 theta = acos(np.dot(distance, upAxis)/(np.linalg.norm(upAxis)*np.linalg.norm(distance)))
-#                 initialMagnitude = sqrt(abs(0.5*G*(np.linalg.norm(distance)/cos(theta))**2/(np.linalg.norm(distance)*tan(theta)+self.ballHit.pos[1]-pos[1])))
-                
-#                 # we want ball to leave collision with velocity magnitude of initialMagnitude
-#                 # it is coming in with self.ballHit.vel velocity
-#                 # we need to find metaVel which would be v2 to make the collision output initialMagnitude
-#                 # vp is an intermediate, v1 is ball vel, v2 is paddle vel. v1p is output vel
-#                 # vp = (1+alpha)*((m1*v1+m2*v2)/(m1+m2) if m2 > 0 else v2)
-#                 # above simplifies to vp = (1+alpha)*v2 because of infinite mass paddle
-#                 # v1p = vp - alpha*v1
-#                 # find v2 such that v1p = initialMagnitude
-#                 # initialMagnitude = vp - alpha*v1 = (1+alpha)*v2 - alpha*v1
-#                 # v2 = (initialMagnitude + alpha*v1)/(1+alpha)
-                
-#                 paddleMagnitude = (initialMagnitude - self.ballHit.restitution*np.linalg.norm(vel))/(1+self.ballHit.restitution)
-                
-#                 self.metaVel = upAxis/np.linalg.norm(upAxis) * paddleMagnitude
-                
-                
-#                 self.move(pos=pos-self.metaVel*t, axis=defaultAxis, angle=0, alignCenter=True)
-                
-                
-                
-                ###### Find the paddle velocity needed to keep the ball at the same height
-                # t, pos, vel = self.ballHit.findInterception(self.ballHit.pos[1])
-                # ball is coming in with velocity v1, if we have velocity v2 then:
-                # vp = (1+alpha)*((m1*v1+m2*v2)/(m1+m2) if m2 > 0 else v2)
-                # v1p = vp - alpha*v1
-                # where vp is an intermediate, and v1p is the output velocity
-                # we want to find v2 such that v1p is equal to -v1
-                # but we know that m2 will be considered infinite, so the vp expression simplifies to:
-                # vp = (1+alpha)*v2
-                # which gives: v1p = (1+alpha)*v2 - alpha*v1
-                # solving for v2 to find v1p=-v1 gives: v2=(alpha*v1-v1)/(1+alpha)=v1*(alpha-1)/(1+alpha)
-                # self.metaVel[1] = self.ballHit.vel[1]*(1-self.ballHit.restitution)/(1+self.ballHit.restitution)
-                # this code puts the ball straight back up at same velocity
-                # self.move(pos=pos-self.metaVel*t, axis = [1,0,0], alignCenter=True)
-                # # self.move(pos=pos, axis = [1,0,0], alignCenter=True)
+                self.move(pos=self.collisionPos-self.metaVel*t, upAxis=upAxis, angle=0, alignCenter=True)
                 
             self.hitBall = False
             
@@ -809,7 +762,8 @@ import ikpy.utils.plot as plot_utils
 my_chain = ikpy.chain.Chain.from_urdf_file("arm_urdf.urdf",active_links_mask=[False, True, True, True, True, True, False, False, False])
 target_position = [ 0.3048, 0.3048,0.1]
 ik = my_chain.inverse_kinematics(target_position)
-
+actual_position = my_chain.forward_kinematics(ik)[:3, 3]
+actual_position = [actual_position[0], actual_position[2], -actual_position[1]]
 
 scene.autoscale = True
 arrow(pos=vec(0,0,0), axis=vec(1,0,0), color=vec(1,0,0))
@@ -840,11 +794,16 @@ frames = 0
 simLengthSeconds = 12/speedMultiplier
 # simLengthTicks = simLengthSeconds/speedMultiplier
 startTime = time.time()
+prev_position = None
+traj_queue = []
+ik_target = sphere(pos=vec(0, -0.1, 0), radius=0.05, color=vec(0, 1, 0))
+collision_pos = sphere(pos=vec(0, -0.1, 0), radius=0.05, color=vec(0, 0, 1))
 
 while t < simLengthSeconds:
     moveCam = False
+    startTime = time.time()
     for _ in range(resolutionMultiplier):
-        # startTime = time.time()
+        
         ball.update(collideables=collideables)
         
         if paddle.hitBall:
@@ -853,27 +812,58 @@ while t < simLengthSeconds:
         paddle.update()
         t += dt
         frames += 1
-        # endTime = time.time()
+    endTime = time.time()
 
-    # update robot arm visual
-    centerAdjust = np.array([paddle.handle.size[0]+paddle.paddle.size[0]/2, 0, 0]) # bottom back left corner aligned coordinates
-    # account for rotation
-    centerAdjust = np.dot(paddle.axisRotation, centerAdjust)
-    centerAdjust = np.dot(paddle.angleRotation, centerAdjust)
-    target_position = paddle.pos + centerAdjust
-    target_orientation = paddle.paddle.normals[2]
-    target_position = [target_position[0], -target_position[2], target_position[1]]
-    target_orientation = [target_orientation[0], -target_orientation[2], target_orientation[1]]
-    ik = my_chain.inverse_kinematics(target_position, target_orientation, initial_position=ik.copy(), orientation_mode="Y")
-    # ik = my_chain.inverse_kinematics(target_position, initial_position=ik.copy())
-    # computed_position = my_chain.forward_kinematics(ik)
-    angles = ik.tolist()
-    # print("IK TIME", time.time()-startTime)
-    # angles[1] += 3.14159
+    startTime = time.time()
+    if np.all(paddle.collisionPos != None):
+        # update robot arm visual
+        centerAdjust = np.array([paddle.handle.size[0]+paddle.paddle.size[0]/2, 0, 0]) # bottom back left corner aligned coordinates
+        # account for rotation
+        centerAdjust = np.dot(paddle.axisRotation, centerAdjust)
+        centerAdjust = np.dot(paddle.angleRotation, centerAdjust)
+        target_paddle_position = paddle.pos + centerAdjust
 
-    startTime=time.time()
-    for i in range(1, len(angles)):
-        robot.setAngle(i, angles[i])
+        numSteps = 10
+        if np.linalg.norm(paddle.collisionPos-actual_position) > 0.3 and len(traj_queue) == 0:
+            collision_pos.pos = vec(*paddle.collisionPos)
+            upPos = (paddle.collisionPos + actual_position)/2
+            upPos[1] = 0.7
+            percentages = np.linspace(0, 1, numSteps*3).reshape(numSteps, 3)
+            trajs = actual_position + (upPos-actual_position) * percentages
+            traj_queue += trajs.tolist()
+            trajs = upPos + (paddle.collisionPos-upPos) * percentages
+            traj_queue += trajs.tolist()
+            target_position = traj_queue.pop(0)
+            target_orientation = None
+            print("NEW QUEUE")
+        elif np.linalg.norm(paddle.collisionPos-actual_position) > 0.1 and len(traj_queue) > 0:
+            target_position = traj_queue.pop(0)
+            if len(traj_queue) < numSteps:
+                target_orientation = paddle.paddle.normals[2]
+            else:
+                target_orientation = None
+            print("USE QUEUE, LEN:", len(traj_queue))
+        elif np.linalg.norm(np.array(target_position) - actual_position) < 0.05:
+            print("FINAL MOVE")
+            target_position = target_paddle_position
+            target_orientation = paddle.paddle.normals[2]
+
+        ik_target.pos = vec(*target_position)
+        ik_position = [target_position[0], -target_position[2], target_position[1]]
+        if np.all(target_orientation != None):
+            ik_orientation = [target_orientation[0], -target_orientation[2], target_orientation[1]]
+            ik = my_chain.inverse_kinematics(ik_position, ik_orientation, initial_position=ik.copy(), orientation_mode="Y")
+        else:
+            ik = my_chain.inverse_kinematics(ik_position, initial_position=ik.copy())
+
+        actual_position = my_chain.forward_kinematics(ik)[:3, 3]
+        actual_position = [actual_position[0], actual_position[2], -actual_position[1]]
+        angles = ik.tolist()
+        
+        for i in range(1, len(angles)):
+            robot.setAngle(i, angles[i])
+    if time.time()-startTime > 0.1:
+        print("IK TIME", time.time()-startTime)
     
     if preSimulateThenPlayback:
         for i in range(len(moveables)):
